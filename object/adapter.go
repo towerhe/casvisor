@@ -25,6 +25,7 @@ import (
 	"github.com/beego/beego"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
+	"xorm.io/core"
 	"xorm.io/xorm"
 )
 
@@ -37,10 +38,24 @@ func InitConfig() {
 	}
 
 	InitAdapter()
+	CreateTables()
 }
 
 func InitAdapter() {
 	adapter = NewAdapter(beego.AppConfig.String("driverName"), beego.AppConfig.String("dataSourceName"))
+
+	tableNamePrefix := beego.AppConfig.String("tableNamePrefix")
+	tbMapper := core.NewPrefixMapper(core.SnakeMapper{}, tableNamePrefix)
+	adapter.engine.SetTableMapper(tbMapper)
+}
+
+func CreateTables() {
+	err := adapter.createDatabase()
+	if err != nil {
+		panic(err)
+	}
+
+	adapter.createTable()
 }
 
 // Adapter represents the MySQL adapter for policy storage.
@@ -139,10 +154,6 @@ func (a *Adapter) createDatabaseForPostgres(dbName string) error {
 }
 
 func (a *Adapter) open() {
-	if err := a.createDatabase(); err != nil {
-		panic(err)
-	}
-
 	dsn := a.dataSourceName
 	if a.driverName == "mysql" {
 		dsn = a.dataSourceName + beego.AppConfig.String("dbName")
@@ -159,7 +170,6 @@ func (a *Adapter) open() {
 		}
 	}
 	a.engine = engine
-	a.createTable()
 }
 
 func (a *Adapter) close() {
